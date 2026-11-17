@@ -31,6 +31,13 @@ test('commands: node <dir> with an index file is verified, not contradicted', ()
   assert.equal(verifyCommand('node examples/content-negotiation/index.js', repo).bucket, 'verified');
 });
 
+test('commands: node . runs the root index file', () => {
+  assert.equal(verifyCommand('node .', { files: ['index.js'] }).bucket, 'verified');
+  assert.equal(verifyCommand('node ./', { files: ['index.js'] }).bucket, 'verified');
+  // Control: a root without an index file is a real failure, so it stays contradicted.
+  assert.equal(verifyCommand('node .', { files: ['lib/index.js'] }).bucket, 'contradicted');
+});
+
 test('commands: a missing node target stays contradicted, a directory without an index is unverifiable', () => {
   const repo = { files: ['examples/content-negotiation/db.js'] };
   assert.equal(verifyCommand('node does-not-exist-xyz.js', repo).bucket, 'contradicted');
