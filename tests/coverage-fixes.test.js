@@ -109,6 +109,35 @@ test('coverage: strict R5 treats hidden tooling directories as non-shipped', () 
   assert.ok(missingNames(used, { strictR5: true }).includes('@storybook/react'));
 });
 
+// The corpus that measured this lives outside the repository, so the behaviour is pinned here with a
+// small fixture: a dev-only package imported only from a dotfile is dropped, at the root and in a
+// workspace, and the same package imported from shipped source keeps its finding.
+test('coverage: strict R5 drops a dev-only import that lives only in a dotfile', () => {
+  const dotfile = {
+    pkg: { name: 'demo', devDependencies: { 'size-limit': '^11.0.0' } },
+    workspaces: [],
+    files: ['package.json', '.size-limit.ts', 'src/index.js'],
+    sources: { '.size-limit.ts': "import type { SizeLimitConfig } from 'size-limit';\n", 'src/index.js': 'export const x = 1;\n' },
+  };
+  assert.ok(missingNames(dotfile).includes('size-limit'), 'the finding must exist before the filter');
+  assert.ok(!missingNames(dotfile, { strictR5: true }).includes('size-limit'));
+
+  // A workspace has its own root, and a dotfile there is the same kind of file.
+  const nested = {
+    ...dotfile,
+    files: ['package.json', 'packages/ui/.size-limit.ts', 'packages/ui/src/index.js'],
+    sources: {
+      'packages/ui/.size-limit.ts': "import type { SizeLimitConfig } from 'size-limit';\n",
+      'packages/ui/src/index.js': 'export const x = 1;\n',
+    },
+  };
+  assert.ok(!missingNames(nested, { strictR5: true }).includes('size-limit'));
+
+  // Control: an import in shipped source keeps the finding, dotfile or not.
+  const used = { ...dotfile, sources: { ...dotfile.sources, 'src/size.ts': "import { x } from 'size-limit';\n" } };
+  assert.ok(missingNames(used, { strictR5: true }).includes('size-limit'));
+});
+
 // scanRepo is the only real caller of scan(). If it drops the flag, the caveat can never reach a
 // report, no matter what the pipeline does.
 test('coverage: scanRepo carries the truncation flag from the fetched repo into the report', async () => {
