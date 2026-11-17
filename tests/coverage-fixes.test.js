@@ -89,3 +89,32 @@ test('coverage: scan forwards the truncation flag to the pipeline', async () => 
   const cutFinding = cut.report.findings.find((f) => f.name === 'left-pad');
   assert.match(cutFinding.evidence.detail, /cut at the 50 KB cap/);
 });
+
+// scanRepo is the only real caller of scan(). If it drops the flag, the caveat can never reach a
+// report, no matter what the pipeline does.
+test('coverage: scanRepo carries the truncation flag from the fetched repo into the report', async () => {
+  const { scanRepo } = await import('../lib/scan-repo.js');
+  const ask = async (requests) => ({
+    answers: Object.fromEntries(requests.flatMap((r) => Object.keys(r.questions)
+      .map((id) => [id, { type: 'choice', choice: 'not_a_claim', confidence: 1, probabilities: {} }]))),
+    calls: [],
+  });
+  const deps = (truncated) => ({
+    fetchRepo: async () => ({ readme, readmePath: 'README.md', truncated, commit: 'a'.repeat(40), snapshot: undeclared }),
+    summarize: async () => ({ notes: null, usage: { status: 'skipped' } }),
+    ask,
+    now: () => 0,
+    runId: () => 'scan_test',
+  });
+
+  const plain = await scanRepo({ owner: 'demo', name: 'demo' }, deps(false));
+  const plainFinding = plain.report.findings.find((f) => f.name === 'left-pad');
+  assert.equal(plain.report.meta.readmeTruncated, false);
+  assert.ok(!/cut at the 50 KB cap/.test(plainFinding.evidence.detail));
+
+  const cut = await scanRepo({ owner: 'demo', name: 'demo' }, deps(true));
+  const cutFinding = cut.report.findings.find((f) => f.name === 'left-pad');
+  assert.equal(cut.report.meta.readmeTruncated, true);
+  assert.equal(cutFinding.bucket, 'missing', 'the bucket must not change');
+  assert.match(cutFinding.evidence.detail, /cut at the 50 KB cap/);
+});
