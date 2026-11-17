@@ -109,9 +109,9 @@ test('coverage: strict R5 treats hidden tooling directories as non-shipped', () 
   assert.ok(missingNames(used, { strictR5: true }).includes('@storybook/react'));
 });
 
-// The corpus that measured this lives outside the repository, so the behaviour is pinned here with a
-// small fixture: a dev-only package imported only from a dotfile is dropped, at the root and in a
-// workspace, and the same package imported from shipped source keeps its finding.
+// The corpus that measured this is not in the tree, so the behaviour is pinned here with inline
+// fixtures: both dotfiles named in the issue must be droppable, at the root and at depth, a workspace
+// manifest must count, and the same package imported from shipped source must keep its finding.
 test('coverage: strict R5 drops a dev-only import that lives only in a dotfile', () => {
   const dotfile = {
     pkg: { name: 'demo', devDependencies: { 'size-limit': '^11.0.0' } },
@@ -122,7 +122,17 @@ test('coverage: strict R5 drops a dev-only import that lives only in a dotfile',
   assert.ok(missingNames(dotfile).includes('size-limit'), 'the finding must exist before the filter');
   assert.ok(!missingNames(dotfile, { strictR5: true }).includes('size-limit'));
 
-  // A workspace has its own root, and a dotfile there is the same kind of file.
+  // The second case from the issue, a doctest setup file at the root.
+  const doctest = {
+    pkg: { name: 'demo', devDependencies: { 'lodash-doc-globals': '^1.0.0' } },
+    workspaces: [],
+    files: ['package.json', '.markdown-doctest-setup.js', 'src/index.js'],
+    sources: { '.markdown-doctest-setup.js': "require('lodash-doc-globals');\n", 'src/index.js': 'export const x = 1;\n' },
+  };
+  assert.ok(missingNames(doctest).includes('lodash-doc-globals'), 'the finding must exist before the filter');
+  assert.ok(!missingNames(doctest, { strictR5: true }).includes('lodash-doc-globals'));
+
+  // Depth: the same file one directory down is the same kind of file, workspace or not.
   const nested = {
     ...dotfile,
     files: ['package.json', 'packages/ui/.size-limit.ts', 'packages/ui/src/index.js'],
@@ -131,7 +141,22 @@ test('coverage: strict R5 drops a dev-only import that lives only in a dotfile',
       'packages/ui/src/index.js': 'export const x = 1;\n',
     },
   };
+  assert.ok(missingNames(nested).includes('size-limit'), 'the finding must exist before the filter');
   assert.ok(!missingNames(nested, { strictR5: true }).includes('size-limit'));
+
+  // A workspace declares its own devDependencies, so the rule has to read every manifest, not the root
+  // one. Without the workspace lookup this package is "declared nowhere" and the finding survives.
+  const workspace = {
+    pkg: { name: 'demo' },
+    workspaces: [{ path: 'packages/ui', pkg: { name: 'ui', devDependencies: { 'size-limit': '^11.0.0' } } }],
+    files: ['package.json', 'packages/ui/package.json', 'packages/ui/.size-limit.ts', 'packages/ui/src/index.js'],
+    sources: {
+      'packages/ui/.size-limit.ts': "import type { SizeLimitConfig } from 'size-limit';\n",
+      'packages/ui/src/index.js': 'export const x = 1;\n',
+    },
+  };
+  assert.ok(missingNames(workspace).includes('size-limit'), 'the finding must exist before the filter');
+  assert.ok(!missingNames(workspace, { strictR5: true }).includes('size-limit'));
 
   // Control: an import in shipped source keeps the finding, dotfile or not.
   const used = { ...dotfile, sources: { ...dotfile.sources, 'src/size.ts': "import { x } from 'size-limit';\n" } };

@@ -61,7 +61,7 @@ test('path-kind: a dotfile is tooling, at the root and inside a workspace', () =
   assert.equal(isShippedSource('size-limit.ts'), true);
   assert.equal(isShippedSource('packages/ui/size-limit.ts'), true);
   // The rule cannot see a package entry point named with a leading dot, because it does not read main,
-  // bin or exports. No repository in the corpus does that, and this test does not pretend to cover it.
+  // bin or exports. That limit is stated in lib/path-kind.js; the corpus has no such package.
 });
 
 test('path-kind: control characters cannot dodge a rule', () => {
