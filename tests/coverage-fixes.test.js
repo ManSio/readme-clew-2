@@ -213,6 +213,36 @@ test('coverage: strict R5 drops a dev-only import that lives only in a dotfile',
   assert.ok(missingNames(used, { strictR5: true }).includes('size-limit'));
 });
 
+// A malformed snapshot must not take the scan down. This was found by red team: a source entry that is
+// not a string made the site scanner throw, and the same input comes from a network response. The
+// import sits in scripts/ because coverage has to emit a finding first, or the scanner is never reached.
+test('coverage: a malformed source entry does not crash the scan', () => {
+  const broken = {
+    pkg: { name: 'demo', devDependencies: { jest: '^29.0.0' } },
+    workspaces: [],
+    files: ['package.json', 'scripts/build.js', 'jest.config.js', 'src/x.js'],
+    sources: { 'scripts/build.js': "import { run } from 'jest';\n", 'jest.config.js': 42, 'src/x.js': null },
+  };
+  assert.ok(missingNames(broken).includes('jest'), 'the finding must exist before the filter');
+  assert.doesNotThrow(() => missingNames(broken, { strictR5: true }));
+  assert.ok(!missingNames(broken, { strictR5: true }).includes('jest'), 'the filter still runs');
+});
+
+// The rule says "declared in devDependencies". A name that only exists on Object.prototype is not a
+// declaration, and reading it as one would drop a finding for a package nobody declared. The file sits
+// in scripts/ because coverage does not read test folders at all, so a tests/ fixture proves nothing.
+test('coverage: an inherited property is not a devDependency declaration', () => {
+  for (const name of ['constructor', 'toString']) {
+    const snapshot = {
+      pkg: { name: 'demo', devDependencies: {} },
+      workspaces: [],
+      files: ['package.json', 'scripts/build.js'],
+      sources: { 'scripts/build.js': `import x from '${name}';\n` },
+    };
+    assert.ok(missingNames(snapshot, { strictR5: true }).includes(name), `${name} was dropped without a declaration`);
+  }
+});
+
 // scanRepo is the only real caller of scan(). If it drops the flag, the caveat can never reach a
 // report, no matter what the pipeline does.
 test('coverage: scanRepo carries the truncation flag from the fetched repo into the report', async () => {
