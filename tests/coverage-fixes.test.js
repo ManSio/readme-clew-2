@@ -243,6 +243,67 @@ test('coverage: an inherited property is not a devDependency declaration', () =>
   }
 });
 
+// The alias map needs the specifier as written. "@shared/ipc/schemas/x" points at a file, while the
+// package name "@shared/ipc" points at nothing, and the first version asked for the name. Found by a
+// manual audit of 63 cases: 39 false findings on the frozen corpus, 0.69%.
+test('coverage: a tsconfig alias with a subpath is local, not a package', () => {
+  const snapshot = {
+    pkg: { name: 'demo' },
+    workspaces: [],
+    files: ['package.json', 'src/shared/ipc/schemas/x.ts', 'src/main.ts'],
+    tsconfigs: { 'tsconfig.json': JSON.stringify({ compilerOptions: { baseUrl: '.', paths: { '@shared/*': ['./src/shared/*'] } } }) },
+    sources: { 'src/main.ts': "import { x } from '@shared/ipc/schemas/x';\n" },
+  };
+  const names = missingNames(snapshot);
+  assert.ok(!names.includes('@shared/ipc'), `alias reported: ${JSON.stringify(names)}`);
+
+  // Control: the same alias pointing at a file that does not exist is still a package claim.
+  const missingTarget = { ...snapshot, sources: { 'src/main.ts': "import { y } from '@shared/nope/x';\n" } };
+  assert.ok(missingNames(missingTarget).includes('@shared/nope'), 'an alias that resolves to nothing must stay a finding');
+});
+
+// The full specifier must not turn a real package into a local file. A rule keyed "react" cannot claim
+// "react-dom", because no file exists at the mapped target.
+test('coverage: an alias prefix does not swallow a real package', () => {
+  const snapshot = {
+    pkg: { name: 'demo' },
+    workspaces: [],
+    files: ['package.json', 'src/shims/react.ts', 'src/app.tsx'],
+    tsconfigs: { 'tsconfig.json': JSON.stringify({ compilerOptions: { baseUrl: '.', paths: { react: ['./src/shims/react.ts'] } } }) },
+    sources: { 'src/app.tsx': "import * as ReactDOM from 'react-dom';\nimport * as React from 'react';\n" },
+  };
+  const names = missingNames(snapshot);
+  assert.ok(names.includes('react-dom'), `react-dom must stay a finding: ${JSON.stringify(names)}`);
+  assert.ok(!names.includes('react'), 'the mapped name itself is local');
+});
+
+// Test-runner configuration is tooling even when its name is not "*.config.*". Measured on 1165
+// repositories: 22 such files, and recognising them removes 51 dev-only findings with no runtime field.
+test('coverage: strict R5 drops a devDependency imported only from a test-runner config', () => {
+  for (const file of ['karma.conf.js', 'jest.preset.js', 'jest-setup.js', 'vitest-setup-client.ts', 'nightwatch.conf.js']) {
+    const snapshot = {
+      pkg: { name: 'demo', devDependencies: { karma: '^6.0.0' } },
+      workspaces: [],
+      files: ['package.json', file, 'src/index.js'],
+      sources: { [file]: "module.exports = { plugins: [require('karma')] };\n", 'src/index.js': 'export const x = 1;\n' },
+    };
+    assert.ok(missingNames(snapshot).includes('karma'), `${file}: the finding must exist before the filter`);
+    assert.ok(!missingNames(snapshot, { strictR5: true }).includes('karma'), `${file}: must be dropped`);
+  }
+});
+
+// The rule matches the tool name as a whole segment, not a substring: a shipped file named
+// "my-karma.conf.js" is not a karma configuration.
+test('coverage: a file that merely contains a tool name is not a config', () => {
+  const snapshot = {
+    pkg: { name: 'demo', devDependencies: { karma: '^6.0.0' } },
+    workspaces: [],
+    files: ['package.json', 'src/my-karma.conf.js', 'src/index.js'],
+    sources: { 'src/my-karma.conf.js': "import { Server } from 'karma';\n", 'src/index.js': 'export const x = 1;\n' },
+  };
+  assert.ok(missingNames(snapshot, { strictR5: true }).includes('karma'), 'a shipped file must keep its finding');
+});
+
 // scanRepo is the only real caller of scan(). If it drops the flag, the caveat can never reach a
 // report, no matter what the pipeline does.
 test('coverage: scanRepo carries the truncation flag from the fetched repo into the report', async () => {
