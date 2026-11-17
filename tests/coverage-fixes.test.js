@@ -70,3 +70,22 @@ test('coverage: a truncated README keeps the Missing bucket and adds the caveat'
   assert.equal(cut.bucket, 'missing', 'the bucket must not change');
   assert.match(cut.evidence.detail, /cut at the 50 KB cap/);
 });
+
+// The real scan path must carry the flag too, or the caveat would only exist in unit tests.
+test('coverage: scan forwards the truncation flag to the pipeline', async () => {
+  const { scan } = await import('../lib/pipeline.js');
+  const ask = async (requests) => ({
+    answers: Object.fromEntries(requests.flatMap((r) => Object.keys(r.questions)
+      .map((id) => [id, { type: 'choice', choice: 'not_a_claim', confidence: 1, probabilities: {} }]))),
+    calls: [],
+  });
+  const args = { readme, repo: { owner: 'demo', name: 'demo' }, snapshot: undeclared, ask };
+
+  const plain = await scan(args);
+  const plainFinding = plain.report.findings.find((f) => f.name === 'left-pad');
+  assert.ok(!/cut at the 50 KB cap/.test(plainFinding.evidence.detail));
+
+  const cut = await scan({ ...args, truncated: true });
+  const cutFinding = cut.report.findings.find((f) => f.name === 'left-pad');
+  assert.match(cutFinding.evidence.detail, /cut at the 50 KB cap/);
+});
