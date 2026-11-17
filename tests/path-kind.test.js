@@ -66,10 +66,12 @@ test('path-kind: a dotfile is tooling, at the root and inside a workspace', () =
 });
 
 test('path-kind: a backslash path is not split into segments', () => {
-  // GitHub's tree API uses "/", so this is a limit rather than a supported input. A rule that looks at
-  // the file name still matches, a rule that looks at a folder cannot.
+  // GitHub's tree API uses "/", so this is a limit rather than a supported input. A folder rule cannot
+  // match at all, and a file-name rule can match across a backslash, so the outcome is approximate.
   assert.equal(isShippedSource('src\\jest.config.js'), false);
   assert.equal(isShippedSource('src\\index.js'), true);
+  assert.equal(isShippedSource('docs\\a.js'), true);
+  assert.equal(isShippedSource('jest.config.js\\src\\index.js'), false);
   assert.equal(isShippedSource('packages\\ui\\.size-limit.ts'), true);
 });
 

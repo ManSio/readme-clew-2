@@ -55,6 +55,9 @@ test('coverage: strict R5 treats peer and optional dependencies as runtime', () 
     };
     assert.ok(missingNames(snapshot).includes(name), `${field}: the finding must exist before the filter`);
     assert.ok(missingNames(snapshot, { strictR5: true }).includes(name), `${field} must block the drop`);
+    // Drop control on the same fixture: the filter still runs, so the assertion above is not passing
+    // because nothing is ever dropped here.
+    assert.ok(!missingNames(snapshot, { strictR5: true }).includes('jest'), `${field}: the filter must still drop jest`);
   }
 });
 
@@ -65,13 +68,15 @@ test('coverage: strict R5 reads the runtime fields of every manifest', () => {
     pkg: { name: 'demo' },
     workspaces: [{
       path: 'packages/ui',
-      pkg: { name: 'ui', devDependencies: { 'date-fns': '^3.0.0' }, dependencies: { 'date-fns': '^3.0.0' } },
+      pkg: { name: 'ui', devDependencies: { 'date-fns': '^3.0.0', 'size-limit': '^11.0.0' }, dependencies: { 'date-fns': '^3.0.0' } },
     }],
     files: ['package.json', 'packages/ui/package.json', 'packages/ui/.size-limit.ts'],
-    sources: { 'packages/ui/.size-limit.ts': "import { format } from 'date-fns';\n" },
+    sources: { 'packages/ui/.size-limit.ts': "import { format } from 'date-fns';\nimport type { SizeLimitConfig } from 'size-limit';\n" },
   };
   assert.ok(missingNames(inWorkspace).includes('date-fns'), 'the finding must exist before the filter');
   assert.ok(missingNames(inWorkspace, { strictR5: true }).includes('date-fns'), 'a runtime field in a workspace must block the drop');
+  // Drop control: the dev-only package in the same file is dropped, so the filter demonstrably ran.
+  assert.ok(!missingNames(inWorkspace, { strictR5: true }).includes('size-limit'), 'the filter must still drop the dev-only package');
 
   const apart = {
     ...inWorkspace,

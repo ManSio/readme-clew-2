@@ -296,4 +296,5 @@ Oct 10, 2026, 10:26 PM PT
 4. Added the local alias rule (a bare specifier that names a directory is not a package) and the cut-README caveat (a README cut at the 50 KB cap keeps its finding and says a mention may be past the cut).
 5. Effect on the frozen corpus: 98 of 838 findings dropped, 11.7%, none carrying a runtime field, and verified, contradicted and unverifiable unchanged.
 6. Wrong turns, recorded: an early 68.3% came from a sample of 3 repositories and is withdrawn; `files`/`exports` from package.json was measured as an alternative and rejected (22 of 86 declare `files`, and it silently drops real `src/` imports); a separate bucket was considered and not taken.
-7. Suite: 544 tests, all offline, from a clean archive. Four review rounds; every fix has a mutant that turns a test red.
+7. Suite: 544 tests, all offline, from a clean archive. Five review rounds; every fix has a mutant that turns a test red.
+8. Where the numbers come from: items 1, 5 and 6 were measured on 86 frozen snapshots of public repositories kept outside this tree (a working copy under `scratch/`, not committed), and the same applies to the counts in LEDGER. The tree reproduces the behaviour, not the counts: `fixtures/corpus` holds 3 repositories, so a reader who wants the aggregate has to rebuild the corpus. Item 3 is verified in the tree by tests that fail without it.
