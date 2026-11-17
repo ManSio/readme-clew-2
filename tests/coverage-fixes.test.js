@@ -137,3 +137,31 @@ test('coverage: scanRepo carries the truncation flag from the fetched repo into 
   assert.equal(cutFinding.bucket, 'missing', 'the bucket must not change');
   assert.match(cutFinding.evidence.detail, /cut at the 50 KB cap/);
 });
+
+// The scan path, not just the pipeline, decides what a reader sees. A dev-only config import must
+// not survive it, and a runtime import must.
+test('coverage: scanRepo applies strict R5 to the report it returns', async () => {
+  const { scanRepo } = await import('../lib/scan-repo.js');
+  const ask = async (requests) => ({
+    answers: Object.fromEntries(requests.flatMap((r) => Object.keys(r.questions)
+      .map((id) => [id, { type: 'choice', choice: 'not_a_claim', confidence: 1, probabilities: {} }]))),
+    calls: [],
+  });
+  const snapshot = {
+    pkg: { name: 'demo', devDependencies: { jest: '^29.0.0' }, dependencies: { react: '^18.0.0' } },
+    workspaces: [],
+    files: ['package.json', 'jest.config.js', 'src/index.js'],
+    sources: { 'jest.config.js': "import { run } from 'jest';\n", 'src/index.js': "import react from 'react';\n" },
+  };
+  const deps = {
+    fetchRepo: async () => ({ readme, readmePath: 'README.md', truncated: false, commit: 'a'.repeat(40), snapshot }),
+    summarize: async () => ({ notes: null, usage: { status: 'skipped' } }),
+    ask,
+    now: () => 0,
+    runId: () => 'scan_test',
+  };
+  const { report } = await scanRepo({ owner: 'demo', name: 'demo' }, deps);
+  const missing = report.findings.filter((f) => f.bucket === 'missing').map((f) => f.name);
+  assert.ok(!missing.includes('jest'), `jest survived: ${JSON.stringify(missing)}`);
+  assert.ok(missing.includes('react'), 'a runtime dependency must stay a finding');
+});
