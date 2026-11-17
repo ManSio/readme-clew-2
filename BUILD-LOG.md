@@ -299,3 +299,11 @@ Oct 10, 2026, 10:26 PM PT
 7. Suite: 544 tests, all offline, from a clean archive. Five review rounds; every fix has a mutant that turns a test red.
 8. Where the numbers come from: items 1, 5 and 6 were measured on 86 frozen snapshots of public repositories kept outside this tree (a working copy under `scratch/`, not committed), and the same applies to the counts in LEDGER. The tree reproduces the behaviour, not the counts: `fixtures/corpus` holds 3 repositories, so a reader who wants the aggregate has to rebuild the corpus. Item 3 is verified in the tree by tests that fail without it.
 9. Red team before the push: 85 attacks on the rule in five classes plus 28 on the path policy, 0 failures after two fixes. A source entry that is not a string crashed the site scanner, and an inherited property counted as a declared devDependency. Both have a test that fails without the fix; the corpus numbers did not move.
+
+## Coverage: specifier aliases and test-runner configs (2026-11-18)
+
+1. Manual audit of 63 findings on a 1165 repository corpus found two defects. The alias map received the package name while the code imports a subpath, so 39 findings were false (0.69%). Test-runner config names were counted as shipped source, so 52 dev-only findings were kept.
+2. `lib/verifiers/dependencies.js`: new `importSites()` returns the specifier as written, and `importedPackages()` is now a thin wrapper over it. `lib/verifiers/coverage.js` asks the alias map for the specifier first, then for the package name.
+3. `lib/path-kind.js`: `TOOLING_FILE` recognises karma, jest, mocha, vitest, ava, wdio, nightwatch and protractor config names, anchored to a JS/TS extension. It is separate from `CONFIG_FILE` because coverage and the env var verifier treat config files differently from the drop rule.
+4. `fixtures/blind/` holds the 63 audited cases with neutral names and a separate label file: 40 policy, 18 observed, 2 known gaps, 3 undecidable. `tests/blind-cases.test.js` checks them; the gaps are frozen at today's verdict so a change cannot pass silently.
+5. Effect on the corpus: Missing 5622 to 5583, dropped 485 to 537 (9.6%), verified, unverifiable and contradicted unchanged, and no dropped finding has a shipped import site.
