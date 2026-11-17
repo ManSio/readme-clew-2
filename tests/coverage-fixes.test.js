@@ -90,6 +90,25 @@ test('coverage: scan forwards the truncation flag to the pipeline', async () => 
   assert.match(cutFinding.evidence.detail, /cut at the 50 KB cap/);
 });
 
+test('coverage: strict R5 treats hidden tooling directories as non-shipped', () => {
+  const hidden = {
+    pkg: { name: 'demo', devDependencies: { '@storybook/react': '^8.0.0' } },
+    workspaces: [],
+    files: ['package.json', '.storybook/main.ts', 'src/index.js'],
+    sources: { '.storybook/main.ts': "import { x } from '@storybook/react';\n", 'src/index.js': 'export const x = 1;\n' },
+  };
+  assert.ok(missingNames(hidden).includes('@storybook/react'));
+  assert.ok(!missingNames(hidden, { strictR5: true }).includes('@storybook/react'));
+
+  // Control: the same package imported from shipped source is kept, hidden dirs or not.
+  const used = {
+    ...hidden,
+    files: [...hidden.files, 'src/story.ts'],
+    sources: { ...hidden.sources, 'src/story.ts': "import { y } from '@storybook/react';\n" },
+  };
+  assert.ok(missingNames(used, { strictR5: true }).includes('@storybook/react'));
+});
+
 // scanRepo is the only real caller of scan(). If it drops the flag, the caveat can never reach a
 // report, no matter what the pipeline does.
 test('coverage: scanRepo carries the truncation flag from the fetched repo into the report', async () => {
