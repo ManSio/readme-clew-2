@@ -51,8 +51,9 @@ test('path-kind: a type test is neither a dependency nor shipped code', () => {
 });
 
 test('path-kind: a dotfile is tooling, at the root and inside a workspace', () => {
-  // Measured on the frozen corpus: size-limit is imported from .size-limit.ts and lodash-doc-globals
-  // from .markdown-doctest-setup.js. Neither name matches a config pattern and both are build tooling.
+  // Measured on the frozen corpus, which is not part of this tree: size-limit is imported from
+  // .size-limit.ts and lodash-doc-globals from .markdown-doctest-setup.js. Neither name matches a
+  // config pattern and both are build tooling.
   assert.equal(isShippedSource('.size-limit.ts'), false);
   assert.equal(isShippedSource('.markdown-doctest-setup.js'), false);
   // A workspace has its own root, and a dotfile there is the same kind of file.

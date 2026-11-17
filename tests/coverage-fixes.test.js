@@ -25,8 +25,10 @@ test('coverage: strict R5 drops a devDependency imported only from a config file
 });
 
 test('coverage: strict R5 keeps a runtime dependency, even when only a config imports it', () => {
+  // Both fields on purpose: the first version declared the package only as a runtime dependency, so the
+  // rule already refused to drop it for the other reason and this assertion could never fail.
   const runtime = {
-    pkg: { name: 'demo', dependencies: { lodash: '4.17.21' }, devDependencies: { jest: '^29.0.0' } },
+    pkg: { name: 'demo', dependencies: { lodash: '4.17.21' }, devDependencies: { jest: '^29.0.0', lodash: '4.17.21' } },
     workspaces: [],
     files: ['package.json', 'jest.config.js', 'src/index.js'],
     sources: { 'jest.config.js': "import _ from 'lodash';\nimport { run } from 'jest';\n", 'src/index.js': 'export const x = 1;\n' },
@@ -34,6 +36,20 @@ test('coverage: strict R5 keeps a runtime dependency, even when only a config im
   const names = missingNames(runtime, { strictR5: true });
   assert.ok(names.includes('lodash'), 'a runtime field must block the drop');
   assert.ok(!names.includes('jest'));
+
+  // The runtime field can be in another manifest than the devDependency. A workspace that lists the
+  // package in both must still block the drop, so the rule has to read every manifest for both fields.
+  const split = {
+    pkg: { name: 'demo' },
+    workspaces: [{
+      path: 'packages/ui',
+      pkg: { name: 'ui', devDependencies: { 'date-fns': '^3.0.0' }, dependencies: { 'date-fns': '^3.0.0' } },
+    }],
+    files: ['package.json', 'packages/ui/package.json', 'packages/ui/.size-limit.ts'],
+    sources: { 'packages/ui/.size-limit.ts': "import { format } from 'date-fns';\n" },
+  };
+  assert.ok(missingNames(split).includes('date-fns'), 'the finding must exist before the filter');
+  assert.ok(missingNames(split, { strictR5: true }).includes('date-fns'), 'a runtime field in a workspace must block the drop');
 });
 
 // jellyfin-web resolves "scripts/browser" to src/scripts/browser.js through a webpack alias the
@@ -109,9 +125,9 @@ test('coverage: strict R5 treats hidden tooling directories as non-shipped', () 
   assert.ok(missingNames(used, { strictR5: true }).includes('@storybook/react'));
 });
 
-// The corpus that measured this is not in the tree, so the behaviour is pinned here with inline
-// fixtures: both dotfiles named in the issue must be droppable, at the root and at depth, a workspace
-// manifest must count, and the same package imported from shipped source must keep its finding.
+// The corpus that measured this is not part of this tree, so the behaviour is pinned here with inline
+// fixtures: the two dotfiles named in the issue, the rule at depth, a workspace manifest, and the
+// same package imported from shipped source.
 test('coverage: strict R5 drops a dev-only import that lives only in a dotfile', () => {
   const dotfile = {
     pkg: { name: 'demo', devDependencies: { 'size-limit': '^11.0.0' } },
@@ -132,7 +148,7 @@ test('coverage: strict R5 drops a dev-only import that lives only in a dotfile',
   assert.ok(missingNames(doctest).includes('lodash-doc-globals'), 'the finding must exist before the filter');
   assert.ok(!missingNames(doctest, { strictR5: true }).includes('lodash-doc-globals'));
 
-  // Depth: the same file one directory down is the same kind of file, workspace or not.
+  // Depth: the same file one directory down is the same kind of file.
   const nested = {
     ...dotfile,
     files: ['package.json', 'packages/ui/.size-limit.ts', 'packages/ui/src/index.js'],
