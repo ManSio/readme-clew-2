@@ -36,10 +36,32 @@ test('coverage: strict R5 keeps a runtime dependency, even when only a config im
   const names = missingNames(runtime, { strictR5: true });
   assert.ok(names.includes('lodash'), 'a runtime field must block the drop');
   assert.ok(!names.includes('jest'));
+});
 
-  // The runtime field can be in another manifest than the devDependency. A workspace that lists the
-  // package in both must still block the drop, so the rule has to read every manifest for both fields.
-  const split = {
+// The rule names three runtime fields. Each one has to block the drop on its own, or a "simplification"
+// that keeps only `dependencies` would quietly reintroduce the false removals the rule exists to avoid.
+test('coverage: strict R5 treats peer and optional dependencies as runtime', () => {
+  const fields = {
+    peerDependencies: { react: '^18.0.0' },
+    optionalDependencies: { fsevents: '^2.3.0' },
+  };
+  for (const [field, deps] of Object.entries(fields)) {
+    const [name] = Object.keys(deps);
+    const snapshot = {
+      pkg: { name: 'demo', devDependencies: { jest: '^29.0.0', ...deps }, [field]: deps },
+      workspaces: [],
+      files: ['package.json', 'jest.config.js', 'src/index.js'],
+      sources: { 'jest.config.js': `import x from '${name}';\nimport { run } from 'jest';\n`, 'src/index.js': 'export const x = 1;\n' },
+    };
+    assert.ok(missingNames(snapshot).includes(name), `${field}: the finding must exist before the filter`);
+    assert.ok(missingNames(snapshot, { strictR5: true }).includes(name), `${field} must block the drop`);
+  }
+});
+
+// A monorepo can declare the two sides in different manifests: the workspace lists the devDependency,
+// the root lists the runtime one. Both have to be read, and the block has to survive the split.
+test('coverage: strict R5 reads the runtime fields of every manifest', () => {
+  const inWorkspace = {
     pkg: { name: 'demo' },
     workspaces: [{
       path: 'packages/ui',
@@ -48,8 +70,15 @@ test('coverage: strict R5 keeps a runtime dependency, even when only a config im
     files: ['package.json', 'packages/ui/package.json', 'packages/ui/.size-limit.ts'],
     sources: { 'packages/ui/.size-limit.ts': "import { format } from 'date-fns';\n" },
   };
-  assert.ok(missingNames(split).includes('date-fns'), 'the finding must exist before the filter');
-  assert.ok(missingNames(split, { strictR5: true }).includes('date-fns'), 'a runtime field in a workspace must block the drop');
+  assert.ok(missingNames(inWorkspace).includes('date-fns'), 'the finding must exist before the filter');
+  assert.ok(missingNames(inWorkspace, { strictR5: true }).includes('date-fns'), 'a runtime field in a workspace must block the drop');
+
+  const apart = {
+    ...inWorkspace,
+    pkg: { name: 'demo', dependencies: { 'date-fns': '^3.0.0' } },
+    workspaces: [{ path: 'packages/ui', pkg: { name: 'ui', devDependencies: { 'date-fns': '^3.0.0' } } }],
+  };
+  assert.ok(missingNames(apart, { strictR5: true }).includes('date-fns'), 'a runtime field in the root manifest must block the drop for a workspace devDependency');
 });
 
 // jellyfin-web resolves "scripts/browser" to src/scripts/browser.js through a webpack alias the

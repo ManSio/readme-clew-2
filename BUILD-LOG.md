@@ -287,3 +287,13 @@ Oct 10, 2026, 10:26 PM PT
 2. Merged PR #5 (`c11d820`, ManSio: guard `withoutRepoParam(null)` in `web/site.js` and `extension/shared/site.js`; per ManSio's PR notes, Node 24.19+ changed `new URLSearchParams(null)` to produce `'null='`).
 3. Merged PR #3 (`788f912`, ManSio: add `.gitattributes` with `* text=auto eol=lf` so Windows checkouts keep LF line endings and byte-comparison tests stay green).
 4. Suite: 480 pass, 0 fail, 0 cancelled.
+
+## Coverage semantics: what counts as shipped (2026-11-17)
+
+1. Read what `Missing` actually reports on 84 public repositories, frozen as 86 snapshots: 838 findings. The split is read from package.json, not judged: 547 name a package with a runtime field, 262 are dev-only, 29 are declared nowhere.
+2. Added `lib/path-kind.js`, one policy for two questions that were drifting apart: which files coverage reads, and which files count as shipped for strict R5. Segments, not substrings, case insensitive, hidden folders, config files, dotfiles, control characters stripped.
+3. Added strict R5 in `lib/r5.js`: a dev-only package imported only from files that do not ship is dropped. Enabled it in the real scan path (`lib/scan-repo.js`), which the flag had not reached before.
+4. Added the local alias rule (a bare specifier that names a directory is not a package) and the cut-README caveat (a README cut at the 50 KB cap keeps its finding and says a mention may be past the cut).
+5. Effect on the frozen corpus: 98 of 838 findings dropped, 11.7%, none carrying a runtime field, and verified, contradicted and unverifiable unchanged.
+6. Wrong turns, recorded: an early 68.3% came from a sample of 3 repositories and is withdrawn; `files`/`exports` from package.json was measured as an alternative and rejected (22 of 86 declare `files`, and it silently drops real `src/` imports); a separate bucket was considered and not taken.
+7. Suite: 544 tests, all offline, from a clean archive. Four review rounds; every fix has a mutant that turns a test red.

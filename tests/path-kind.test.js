@@ -65,6 +65,14 @@ test('path-kind: a dotfile is tooling, at the root and inside a workspace', () =
   // bin or exports. That limit is stated in lib/path-kind.js; the corpus has no such package.
 });
 
+test('path-kind: a backslash path is not split into segments', () => {
+  // GitHub's tree API uses "/", so this is a limit rather than a supported input. A rule that looks at
+  // the file name still matches, a rule that looks at a folder cannot.
+  assert.equal(isShippedSource('src\\jest.config.js'), false);
+  assert.equal(isShippedSource('src\\index.js'), true);
+  assert.equal(isShippedSource('packages\\ui\\.size-limit.ts'), true);
+});
+
 test('path-kind: control characters cannot dodge a rule', () => {
   // GitHub paths never contain them, but a hostile string must not turn a config into shipped code.
   assert.equal(isShippedSource('jest.config.js\u0000'), false);
