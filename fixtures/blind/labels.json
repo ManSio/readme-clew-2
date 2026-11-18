@@ -425,7 +425,8 @@
   "truth": "F",
   "expect": "not_reported",
   "tag": "gap",
-  "frozen": "reported"
+  "frozen": "reported",
+  "reason": "the package belongs to a workspace whose package.json the fetch layer did not read (a nested <root>/<a>/<b>/package.json, or libraries/<x>), so the alias map and the declared set both miss it; measured: 93 of 1032 repositories carry such manifests"
  },
  {
   "id": "case-062",
@@ -433,7 +434,8 @@
   "truth": "F",
   "expect": "not_reported",
   "tag": "gap",
-  "frozen": "reported"
+  "frozen": "reported",
+  "reason": "the package belongs to a workspace whose package.json the fetch layer did not read (a nested <root>/<a>/<b>/package.json, or libraries/<x>), so the alias map and the declared set both miss it; measured: 93 of 1032 repositories carry such manifests"
  },
  {
   "id": "case-063",
